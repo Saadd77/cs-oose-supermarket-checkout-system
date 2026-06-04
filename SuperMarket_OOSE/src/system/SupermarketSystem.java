@@ -8,13 +8,15 @@ import inventory.ManagerNotifier;
 import inventory.SupplierNotifier;
 import delivery.DeliveryRequest;
 import delivery.DeliveryService;
+import delivery.DeliverySlot;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class SupermarketSystem {
-    private final Map<String, User> users = new HashMap<>();
-    private User currentUser;
+    // Replaced users map and currentUser with AuthManager
+    private final AuthManager auth = new AuthManager();
+    
     private final Map<String, Category> categories = new HashMap<>();
     private final Map<String, Item> items = new HashMap<>();
     private Cart currentCart;
@@ -27,79 +29,47 @@ public class SupermarketSystem {
     private final DeliveryService deliveryService = new DeliveryService();
     
     public SupermarketSystem() {
-        users.put("ceo", new Manager("CEO", "Manager", "ceo", "123456789"));
-
         inventoryService.addObserver(new ManagerNotifier());
         inventoryService.addObserver(new SupplierNotifier());
     }
 
     public void setup() {
-        users.put("cashier1", new Cashier("Default", "Cashier", "cashier1", "pass"));
+        auth.setupDefaultUsers();
         tas.registerCard(new BankCard("4242424242424242", "1234", 10000.0));
         System.out.println("Default setup loaded.");
     }
 
+    // --- Authentication Wrapper Methods ---
     public void login(String username, String password) {
-        User user = users.get(username);
-
-        if (user == null) {
-            throw new IllegalArgumentException("unknown user: " + username);
-        }
-
-        if (!user.checkPassword(password)) {
-            throw new IllegalArgumentException("wrong password");
-        }
-
-        currentUser = user;
+        auth.login(username, password);
         System.out.println("Logged in as " + username);
     }
 
     public void logout() {
-        if (currentUser == null) {
-            throw new IllegalStateException("no user is currently logged in");
-        }
-
-        System.out.println("Logged out from " + currentUser.getUsername());
-        currentUser = null;
+        String username = auth.getCurrentUser() != null ? auth.getCurrentUser().getUsername() : "unknown";
+        auth.logout();
+        System.out.println("Logged out from " + username);
     }
 
     public void registerCashier(String firstName, String lastName, String username, String password) {
-        requireManager();
-
-        if (users.containsKey(username)) {
-            throw new IllegalArgumentException("username already exists: " + username);
-        }
-
-        users.put(username, new Cashier(firstName, lastName, username, password));
+        auth.registerCashier(firstName, lastName, username, password);
         System.out.println("Cashier registered: " + username);
     }
 
     public void registerCustomer(String firstName, String lastName, String username, String address, String password) {
-        requireManager();
-
-        if (users.containsKey(username)) {
-            throw new IllegalArgumentException("username already exists: " + username);
-        }
-
-        users.put(username, new Customer(firstName, lastName, username, address, password));
+        auth.registerCustomer(firstName, lastName, username, address, password);
         System.out.println("Customer registered: " + username);
     }
 
-    private void requireManager() {
-        if (!(currentUser instanceof Manager)) {
-            throw new IllegalStateException("manager login required");
-        }
-    }
-    
+    // --- Core Operations ---
     public void addItem(String itemName, String categoryName, double unitPrice, double weight, int initialStock) {
-        requireManager();
+        auth.requireManager();
 
         if (items.containsKey(itemName)) {
             throw new IllegalArgumentException("item already exists: " + itemName);
         }
 
         Category category = categories.get(categoryName);
-
         if (category == null) {
             category = new Category(categoryName);
             categories.put(categoryName, category);
@@ -112,10 +82,9 @@ public class SupermarketSystem {
     }
 
     public void setCategoryDiscount(String categoryName, double discountPercent) {
-        requireManager();
+        auth.requireManager();
 
         Category category = categories.get(categoryName);
-
         if (category == null) {
             throw new IllegalArgumentException("unknown category: " + categoryName);
         }
@@ -125,10 +94,9 @@ public class SupermarketSystem {
     }
 
     public void startCheckout(String customerUsername) {
-        requireCashier();
+        auth.requireCashier();
 
-        User user = users.get(customerUsername);
-
+        User user = auth.getUser(customerUsername);
         if (!(user instanceof Customer)) {
             throw new IllegalArgumentException("unknown customer: " + customerUsername);
         }
@@ -140,14 +108,13 @@ public class SupermarketSystem {
     }
 
     public void scanItem(String itemName, int quantity) {
-        requireCashier();
+        auth.requireCashier();
 
         if (currentCart == null) {
             throw new IllegalStateException("no active checkout session");
         }
 
         Item item = items.get(itemName);
-
         if (item == null) {
             throw new IllegalArgumentException("unknown item: " + itemName);
         }
@@ -157,7 +124,7 @@ public class SupermarketSystem {
     }
 
     public double computeBill() {
-        requireCashier();
+        auth.requireCashier();
 
         if (currentCart == null) {
             throw new IllegalStateException("no active checkout session");
@@ -193,17 +160,10 @@ public class SupermarketSystem {
         return finalTotal;
     }
 
-    private void requireCashier() {
-        if (!(currentUser instanceof Cashier)) {
-            throw new IllegalStateException("cashier login required");
-        }
-    }
-    
     public void subscribeToPlan(String planName) {
-        requireCustomer();
+        auth.requireCustomer();
 
-        Customer customer = (Customer) currentUser;
-
+        Customer customer = (Customer) auth.getCurrentUser();
         DiscountPlan plan;
 
         switch (planName) {
@@ -224,14 +184,8 @@ public class SupermarketSystem {
         System.out.println("Customer subscribed to plan: " + plan.getName());
     }
     
-    private void requireCustomer() {
-        if (!(currentUser instanceof Customer)) {
-            throw new IllegalStateException("customer login required");
-        }
-    }
-    
     public void simulatePayment(String outcomeText) {
-        requireCashier();
+        auth.requireCashier();
 
         PaymentOutcome outcome = PaymentOutcome.valueOf(outcomeText);
         pos.simulatePayment(outcome);
@@ -240,7 +194,7 @@ public class SupermarketSystem {
     }
 
     public void pay(String cardNumber, String pin) {
-        requireCashier();
+        auth.requireCashier();
 
         if (currentCart == null) {
             throw new IllegalStateException("no active checkout session");
@@ -258,8 +212,12 @@ public class SupermarketSystem {
         }
 
         inventoryService.decreaseStockAfterSale(currentCart);
-
         revenue += lastComputedBill;
+
+        // R10 LOGIC: Successfully paid, officially book the slot!
+        if (checkoutCustomer.getPendingDeliveryRequest() != null) {
+            checkoutCustomer.getPendingDeliveryRequest().getSlot().book();
+        }
 
         System.out.println("Payment accepted: " + result.getMessage());
         System.out.printf("Receipt printed. Amount paid: %.2f%n", lastComputedBill);
@@ -272,12 +230,12 @@ public class SupermarketSystem {
     }
 
     public void showRevenue() {
-        requireManager();
+        auth.requireManager();
         System.out.printf("Total revenue: %.2f%n", revenue);
     }
     
     public void showInventory() {
-        requireManager();
+        auth.requireManager();
 
         System.out.println("Inventory:");
 
@@ -293,25 +251,33 @@ public class SupermarketSystem {
         }
     }
     
-    public void requestDelivery(String address) {
-        requireCustomer();
+    // R10 LOGIC: Added slotId parameter to track delivery capacities
+    public void requestDelivery(String address, String slotId) {
+        auth.requireCustomer();
+        Customer customer = (Customer) auth.getCurrentUser();
 
-        Customer customer = (Customer) currentUser;
+        DeliverySlot slot = deliveryService.getSlot(slotId);
+        if (slot == null) {
+            throw new IllegalArgumentException("Unknown slot ID");
+        }
+        if (!slot.hasCapacity()) {
+            throw new IllegalStateException("This delivery slot is fully booked.");
+        }
 
-        // Simple fixed distance for now.
-        // Later you can improve this if needed.
         double distanceKm = 10.0;
+        customer.setPendingDeliveryRequest(new DeliveryRequest(address, distanceKm, slot));
 
-        customer.setPendingDeliveryRequest(new DeliveryRequest(address, distanceKm));
+        System.out.println("Delivery requested for next purchase to: " + address + " during " + slot.getTimeWindow());
+    }
 
-        System.out.println("Delivery requested for next purchase to: " + address);
+    public void showDeliverySlots() {
+        deliveryService.displayAvailableSlots();
     }
     
     public void restock(String itemName, int quantity) {
-        requireManager();
+        auth.requireManager();
 
         Item item = items.get(itemName);
-
         if (item == null) {
             throw new IllegalArgumentException("unknown item: " + itemName);
         }

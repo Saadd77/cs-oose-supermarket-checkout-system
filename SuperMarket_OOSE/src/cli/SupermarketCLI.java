@@ -128,10 +128,15 @@ public class SupermarketCLI {
                     checkArgCount(args, 0);
                     system.showInventory();
                     break;
+                
+                case "showSlots":
+                    checkArgCount(args, 0);
+                    system.showDeliverySlots();
+                    break;
                     
                 case "requestDelivery":
-                    checkArgCount(args, 1);
-                    system.requestDelivery(args[0]);
+                    checkArgCount(args, 2); // Now expects address AND slotId
+                    system.requestDelivery(args[0], args[1]);
                     break;
                     
                 case "runTest":
@@ -212,7 +217,8 @@ public class SupermarketCLI {
         System.out.println("pay <cardNumber> <pin>");
         System.out.println("showRevenue");
         System.out.println("showInventory");
-        System.out.println("requestDelivery <address>");
+        System.out.println("showSlots");
+        System.out.println("requestDelivery <address> <slotId>");
         System.out.println("runTest <testScenario-file>");
         System.out.println("restock <itemName> <quantity>");
     }

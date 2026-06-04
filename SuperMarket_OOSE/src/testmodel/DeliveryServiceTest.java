@@ -2,6 +2,7 @@ package testmodel;
 
 import delivery.DeliveryRequest;
 import delivery.DeliveryService;
+import delivery.DeliverySlot;
 import model.Cart;
 import model.Category;
 import model.Item;
@@ -19,7 +20,8 @@ public class DeliveryServiceTest {
         Cart cart = new Cart();
         cart.addItem(apple, 10);
 
-        DeliveryRequest request = new DeliveryRequest("Paris", 10.0);
+        DeliverySlot neutralSlot = new DeliverySlot("testSlot", "12:00-14:00", false, false, 5);
+        DeliveryRequest request = new DeliveryRequest("Paris", 10.0, neutralSlot);
         DeliveryService service = new DeliveryService();
 
         assertEquals(15.0, service.computeBaseDeliveryFee(cart, request), 0.001);
@@ -46,7 +48,8 @@ public class DeliveryServiceTest {
         Cart cart = new Cart();
         cart.addItem(chicken, 6);
 
-        DeliveryRequest request = new DeliveryRequest("Paris", 10.0);
+        DeliverySlot neutralSlot = new DeliverySlot("testSlot", "12:00-14:00", false, false, 5);
+        DeliveryRequest request = new DeliveryRequest("Paris", 10.0, neutralSlot);
         DeliveryService service = new DeliveryService();
 
         service.computeBaseDeliveryFee(cart, request);

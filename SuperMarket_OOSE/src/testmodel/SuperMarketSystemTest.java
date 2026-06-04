@@ -90,21 +90,20 @@ public class SuperMarketSystemTest {
 
         system.login("andrew", "andrewpwd");
         system.subscribeToPlan("prime");
-        system.requestDelivery("Nabatieh");
-        system.logout();
-
+        system.requestDelivery("Nabatieh", "slot2"); // Adding the eco-friendly slot        system.logout();
         system.login("saad", "saadpwd");
         system.startCheckout("andrew");
         system.scanItem("manoushe", 10);
 
         double bill = system.computeBill();
 
-        // Items total = 100
-        // Prime discount = 80
-        // Base delivery fee = 15
-        // Prime delivery discount = 7.5
-        // Final total = 87.5
-        assertEquals(87.5, bill, 0.001);
+	     // NEW MATH: 
+	     // Items total = 100
+	     // Prime discount = 80
+	     // Base fee (15) + slot2 eco discount (-3) = 12 base delivery fee
+	     // Prime delivery discount (50% of 12) = 6
+	     // Final total = 80 + 6 = 86.0
+	     assertEquals(86.0, bill, 0.001);
     }
 
     @Test(expected = IllegalStateException.class)

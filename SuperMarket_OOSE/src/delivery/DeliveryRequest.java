@@ -3,10 +3,12 @@ package delivery;
 public class DeliveryRequest {
     private final String address;
     private final double distanceKm;
+    private final DeliverySlot slot;
 
-    public DeliveryRequest(String address, double distanceKm) {
+    public DeliveryRequest(String address, double distanceKm, DeliverySlot slot) {
         this.address = address;
         this.distanceKm = distanceKm;
+        this.slot = slot;
     }
 
     public String getAddress() {
@@ -15,5 +17,9 @@ public class DeliveryRequest {
 
     public double getDistanceKm() {
         return distanceKm;
+    }
+
+    public DeliverySlot getSlot() {
+        return slot;
     }
 }
