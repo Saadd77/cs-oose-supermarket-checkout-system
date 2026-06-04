@@ -5,7 +5,7 @@
 #
 # What this scenario tests:
 #   1. Default bootstrap + manual catalogue extension.
-#   2. Category-level pricing policy (R6: -10% on fruit-and-vegetables).
+#   2. Category-level pricing policy (R6: -10% on fruits-and-vegetables).
 #   3. Customer subscription to the 'prime' plan (R5).
 #   4. Checkout with a mixed cart of all three mandatory categories (R2b).
 #   5. Bill computation combining category discount + customer plan.
@@ -24,11 +24,11 @@ setup
 
 # ---- 2. Manager extends the default catalogue ----
 # addItem <name> <category> <unitPrice> <weight-kg> <initialStock>
-addItem milk         dairy                  1.20 1.00  50
-addItem yogurt       dairy                  0.80 0.15  30
-addItem steak        meat                  12.50 0.50   5
-addItem chicken      meat                   8.00 1.00  20
-addItem apple        fruit-and-vegetables   0.30 0.20 200
+addItem labneh       dairy                  3.00 0.50  30
+addItem halloumi     dairy                  4.50 0.40  25
+addItem kafta        meat                  10.00 0.50   5
+addItem tawouk       meat                   8.00 0.50  20
+addItem cucumber     fruit-and-vegetables   0.40 0.20 100
 addItem tomato       fruit-and-vegetables   0.90 0.25 100
 
 
@@ -38,29 +38,29 @@ setCategoryDiscount fruit-and-vegetables 10
 
 
 # ---- 4. Register a cashier and a customer ----
-registerCashier  Bob   Dupont  bob    bobpwd
-registerCustomer Alice Martin  alice  "12 rue de la Paix" alicepwd
+registerCashier  Saad   Dakdouki  saad    saadpwd
+registerCustomer Andrew Nohra     andrew  "Nabatieh" andrewpwd
 logout
 
 
 # ---- 5. Customer subscribes to the 'prime' plan ----
-login alice alicepwd
+login andrew andrewpwd
 subscribeToPlan prime
 
 # Customer also requests home delivery for the upcoming purchase.
-# The request will be applied to the next checkout opened for Alice.
-requestDelivery "12 rue de la Paix"
+# The request will be applied to the next checkout opened for Andrew.
+requestDelivery "Nabatieh"
 logout
 
 
 # ---- 6. Cashier opens the checkout and scans items ----
-login bob bobpwd
-startCheckout alice
-scanItem milk    2
-scanItem yogurt  3
-scanItem steak   1
-scanItem apple  10
-scanItem tomato  4
+login saad saadpwd
+startCheckout andrew
+scanItem labneh    2
+scanItem halloumi  1
+scanItem kafta     1
+scanItem cucumber 10
+scanItem tomato    4
 
 # Display the bill.
 # Expected behavior:
@@ -87,20 +87,20 @@ pay 4242424242424242 1234
 logout
 
 
-# ---- 9. Second checkout to push 'steak' further below its low-stock threshold ----
-# Initial steak stock = 5.
-# After the previous successful sale of 1 steak, steak stock = 4.
-# Since the default low-stock threshold is 5, buying 1 steak already triggered
+# ---- 9. Second checkout to push 'kafta' further below its low-stock threshold ----
+# Initial kafta stock = 5.
+# After the previous successful sale of 1 kafta, kafta stock = 4.
+# Since the default low-stock threshold is 5, buying 1 kafta already triggered
 # a low-stock alert.
-# Buying 4 more steaks should trigger another low-stock alert with stock = 0.
+# Buying 4 more kafta should trigger another low-stock alert with stock = 0.
 #
 # This second checkout also tests the prime item discount:
-#   4 steaks x 12.50 = 50.00 euros
-#   Prime plan applies because the item total is >= 50 euros
-#   Final item total should become 40.00 euros before payment.
-login bob bobpwd
-startCheckout alice
-scanItem steak 4
+#   4 kafta x 10.00 = 40.00 euros
+#   This is below 50 euros, so prime item discount will NOT apply.
+#   To test prime item discount, use 5 kafta if stock allows it.
+login saad saadpwd
+startCheckout andrew
+scanItem kafta 4
 computeBill
 simulatePayment SUCCESS
 pay 4242424242424242 1234
