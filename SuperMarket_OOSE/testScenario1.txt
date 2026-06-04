@@ -49,7 +49,7 @@ subscribeToPlan prime
 
 # Customer also requests home delivery for the upcoming purchase.
 # The request will be applied to the next checkout opened for Andrew.
-requestDelivery "Nabatieh"
+requestDelivery "Nabatieh" slot2
 logout
 
 
