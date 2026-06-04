@@ -1,0 +1,114 @@
+# =========================================================================
+# testScenario1.txt
+# -------------------------------------------------------------------------
+# End-to-end scenario for the mysupermarket CLUI.
+#
+# What this scenario tests:
+#   1. Default bootstrap + manual catalogue extension.
+#   2. Category-level pricing policy (R6: -10% on fruits-and-vegetables).
+#   3. Customer subscription to the 'prime' plan (R5).
+#   4. Checkout with a mixed cart of all three mandatory categories (R2b).
+#   5. Bill computation combining category discount + customer plan.
+#   6. Home delivery with plan-based fee reduction (R7, R8, R8b).
+#   7. Failed payment (INSUFFICIENT_FUNDS) followed by a successful retry.
+#   8. Inventory decrement and low-stock alert (R9, Observer pattern).
+#
+# Lines starting with '#' are comments and must be ignored by runTest.
+# =========================================================================
+
+
+# ---- 1. Manager bootstraps the system ----
+login ceo 123456789
+setup
+
+
+# ---- 2. Manager extends the default catalogue ----
+# addItem <name> <category> <unitPrice> <weight-kg> <initialStock>
+addItem labneh       dairy                  3.00 0.50  30
+addItem halloumi     dairy                  4.50 0.40  25
+addItem kafta        meat                  10.00 0.50   5
+addItem tawouk       meat                   8.00 0.50  20
+addItem cucumber     fruit-and-vegetables   0.40 0.20 100
+addItem tomato       fruit-and-vegetables   0.90 0.25 100
+
+
+# ---- 3. Category-level discount (R6) ----
+# Applies a 10% reduction on all fruit-and-vegetables items.
+setCategoryDiscount fruit-and-vegetables 10
+
+
+# ---- 4. Register a cashier and a customer ----
+registerCashier  Saad   Dakdouki  saad    saadpwd
+registerCustomer Andrew Nohra     andrew  "Nabatieh" andrewpwd
+logout
+
+
+# ---- 5. Customer subscribes to the 'prime' plan ----
+login andrew andrewpwd
+subscribeToPlan prime
+
+# Customer also requests home delivery for the upcoming purchase.
+# The request will be applied to the next checkout opened for Andrew.
+requestDelivery "Nabatieh" slot2
+logout
+
+
+# ---- 6. Cashier opens the checkout and scans items ----
+login saad saadpwd
+startCheckout andrew
+scanItem labneh    2
+scanItem halloumi  1
+scanItem kafta     1
+scanItem cucumber 10
+scanItem tomato    4
+
+# Display the bill.
+# Expected behavior:
+#   - Fruit-and-vegetables items receive a 10% category discount.
+#   - Prime plan is active.
+#   - However, the item total after category discounts is below 50 euros,
+#     so the 20% prime item discount is NOT applied in this first checkout.
+#   - Prime still gives a 50% discount on delivery fees.
+computeBill
+
+
+# ---- 7. First payment attempt fails ----
+# This tests the unhappy path: payment refusal.
+# Inventory must NOT be decremented after this failed payment.
+simulatePayment INSUFFICIENT_FUNDS
+pay 4242424242424242 1234
+
+
+# ---- 8. Second payment attempt succeeds ----
+# This tests successful payment after retry.
+# Inventory must be decremented only now.
+simulatePayment SUCCESS
+pay 4242424242424242 1234
+logout
+
+
+# ---- 9. Second checkout to push 'kafta' further below its low-stock threshold ----
+# Initial kafta stock = 5.
+# After the previous successful sale of 1 kafta, kafta stock = 4.
+# Since the default low-stock threshold is 5, buying 1 kafta already triggered
+# a low-stock alert.
+# Buying 4 more kafta should trigger another low-stock alert with stock = 0.
+#
+# This second checkout also tests the prime item discount:
+#   4 kafta x 10.00 = 40.00 euros
+#   This is below 50 euros, so prime item discount will NOT apply.
+#   To test prime item discount, use 5 kafta if stock allows it.
+login saad saadpwd
+startCheckout andrew
+scanItem kafta 4
+computeBill
+simulatePayment SUCCESS
+pay 4242424242424242 1234
+logout
+
+
+# ---- 10. Manager inspects the resulting state ----
+login ceo 123456789
+showInventory
+showRevenue
+logout
